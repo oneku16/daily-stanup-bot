@@ -1,0 +1,20 @@
+[project]
+name = "own-bot"
+version = "0.1.0"
+description = "Telegram bot for daily standup meetings"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aiogram>=3.13,<4",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "pydantic-settings>=2.0",
+    "apscheduler>=3.10",
+    "alembic>=1.13",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+
+[tool.uv]
+dev-dependencies = ["pytest", "pytest-asyncio"]
