@@ -1,10 +1,13 @@
+import html
 import uuid
-from datetime import date, time
+from datetime import date, datetime, time
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.dtos import BotSettingsDto, HistorySummaryDto, StandupReportDto
+from app.config import settings as app_settings
 from app.domain.entities import StandupReport, User
 from app.domain.value_objects import StandupAnswers
 from app.infrastructure.repositories import (
@@ -40,16 +43,25 @@ async def save_standup_report(
 
 
 def _format_report_line(report: StandupReport, user: User) -> str:
-    from datetime import datetime
     ts = report.reported_at or report.created_at
-    dt_str = ts.strftime("%d-%m | %H:%M") if isinstance(ts, datetime) else ""
+    if isinstance(ts, datetime):
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=ZoneInfo("UTC"))
+        tz = ZoneInfo(app_settings.bot.standup_timezone)
+        local_ts = ts.astimezone(tz)
+        dt_str = local_ts.strftime("%d/%m/%Y | %H:%M")
+    else:
+        dt_str = ""
+    y = html.escape(report.yesterday or "")
+    t = html.escape(report.today or "")
+    i = html.escape(report.issues or "")
     return (
         f"{user.mention}\n"
         f"{user.full_name}\n"
-        f"{dt_str}\n"
-        f"Yesterday: {report.yesterday}\n"
-        f"Today: {report.today}\n"
-        f"Issues: {report.issues}"
+        f"{dt_str}\n\n"
+        f"<b>Yesterday</b>:\n{y}\n\n"
+        f"<b>Today</b>:\n{t}\n\n"
+        f"<b>Issues</b>:\n{i}"
     )
 
 
@@ -92,10 +104,15 @@ async def get_history_summary(session: AsyncSession, d: date) -> HistorySummaryD
     repo = StandupReportRepository(session)
     pairs = await repo.get_reports_for_date(d)
     reports: list[StandupReportDto] = []
+    tz = ZoneInfo(app_settings.bot.standup_timezone)
     for report, user in pairs:
         ts = report.reported_at or report.created_at
-        from datetime import datetime
-        dt_str = ts.strftime("%d-%m | %H:%M") if isinstance(ts, datetime) else ""
+        if isinstance(ts, datetime):
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=ZoneInfo("UTC"))
+            dt_str = ts.astimezone(tz).strftime("%d/%m/%Y | %H:%M")
+        else:
+            dt_str = ""
         reports.append(
             StandupReportDto(
                 username=user.mention,
